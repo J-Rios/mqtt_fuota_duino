@@ -1,0 +1,9 @@
+**/.pio
+**/.vscode
+
+**/sdkconfig*
+**/CMakeLists.txt
+**/*.o
+**/*.bin
+**/*.elf
+**/*.hex
