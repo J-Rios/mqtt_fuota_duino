@@ -48,11 +48,55 @@
 
 /* Libraries */
 
+// Standard C++ Libraries
+#include <cstdint>
+#include <cstddef>
 
 /*****************************************************************************/
 
 /* Constants */
 
+// Maximum Application Size expected (set to 4MB Flash)
+#if !defined(MAX_APP_SIZE)
+    static const uint32_t MAX_APP_SIZE = 4194304U;
+#endif
+
+// MQTT Client Received messages Buffer Size
+static const uint16_t RX_BUFFER_SIZE = 2048U;
+
+// Buffer size to store each Firmware data block
+static constexpr uint16_t RX_FW_DATA_BUFFER_SIZE = (RX_BUFFER_SIZE / 2U);
+
+// Maximum Topic string length (i.e. "XX:XX:XX:XX:XX:XX/ota/control")
+static const uint8_t MAX_TOPIC_LENGTH = 32U;
+
+// Maximum Length of UUID
+static const uint8_t MAX_UUID_LENGTH = MAX_TOPIC_LENGTH - 12U;
+
+// Firmware Version Length (XXX.YYY.ZZZ - Major.Minor.Patch)
+static const uint8_t FW_VERSION_LENGTH = 3U;
+
+// Commands Frame Length
+static const unsigned int CMD_LEN = 4U;
+
+/*****************************************************************************/
+
+/* MQTT Topics */
+
+// Topic from Server to Setup Device:
+// Trigger update check, Provide last FW version, FW update start message
+static const char MQTT_TOPIC_SUB_OTA_SETUP[] = "/%s/ota/setup";
+
+// Topic from Server to send Firmware Data messages
+static const char MQTT_TOPIC_SUB_OTA_DATA[] = "/%s/ota/data";
+
+// Topic from Device for OTA Control Requests:
+// FW Update check (request last FW version), Request FW update,
+// Notify Update completed
+static const char MQTT_TOPIC_PUB_OTA_CONTROL[] = "/%s/ota/control";
+
+// Topic from Device to Acknowledge of received data messages
+static const char MQTT_TOPIC_PUB_OTA_ACK[] = "/%s/ota/ack";
 
 /*****************************************************************************/
 

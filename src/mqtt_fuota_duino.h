@@ -50,6 +50,14 @@
 
 /* Libraries */
 
+// Standard C++ Libraries
+#include <cstdint>
+
+// MQTT FUOTA Protocol Definitions
+#include "mqtt_fuota_def.h"
+
+// MQTT Library
+#include <PubSubClient.h>
 
 /*****************************************************************************/
 
@@ -77,6 +85,32 @@ class MQTTFirmwareUpdate
 
     public:
 
+        /**
+         * @brief Initialize the MQTTFirmwareUpdate component.
+         * @param mqtt_client MQTT Client to use.
+         * @param device_id Device identification string to be used on topics.
+         * @return true Initialization success.
+         * @return false Initialization fail.
+         */
+        bool init(PubSubClient* mqtt_client, char* device_id=nullptr);
+
+        /**
+         * @brief Run an iteration of the MQTTFirmwareUpdate main behaviour.
+         */
+        void process();
+
+        /**
+         * @brief Provide a received MQTT message to the MQTTFirmwareUpdate
+         * component to let it check and handle it.
+         * @param topic Received MQTT message topic.
+         * @param payload Received MQTT message payload data.
+         * @param length Received MQTT message payload data number of bytes.
+         * @return true The message was expected and handled by the
+         * MQTTFirmwareUpdate component.
+         * @return false The message was not expected and was ignored by the
+         * MQTTFirmwareUpdate component.
+         */
+        bool mqtt_msg_rx(char* topic, uint8_t* payload, uint32_t length);
 
     /******************************************************************/
 
@@ -98,13 +132,60 @@ class MQTTFirmwareUpdate
 
     private:
 
+        bool is_initialized;
+        PubSubClient* MQTTClient;
+        bool fw_ready_update;
+        unsigned long t0_subscribe;
+        bool subcribed_to_topic_ota_setup;
+        bool subcribed_to_topic_ota_data;
+        char topic_sub_ota_setup[MAX_TOPIC_LENGTH];
+        char topic_sub_ota_data[MAX_TOPIC_LENGTH];
+        char topic_pub_ota_control[MAX_TOPIC_LENGTH];
+        char topic_pub_ota_ack[MAX_TOPIC_LENGTH];
 
     /******************************************************************/
 
-    /* Private Methods */
+    /* Private Methods - FUOTA */
 
     private:
 
+        /**
+         * @brief Handle requests received through the Setup topic.
+         */
+        void handle_server_requests();
+
+        /**
+         * @brief Handle received Firmware data blocks and send acknowledges.
+         */
+        void handle_received_fw_data();
+
+    /******************************************************************/
+
+    /* Private Methods - Auxiliary */
+
+    private:
+
+        /**
+         * @brief Check if MQTT is connected.
+         * @return true MQTT is connected.
+         * @return false MQTT is disconnected.
+         */
+        bool is_connected();
+
+        /**
+         * @brief Check for FUOTA MQTT subscriptions and subscribe if needed.
+         */
+        void manage_subscriptions();
+
+        /**
+         * @brief Generate and get a default Device ID to be used on MQTT
+         * topics. The default device ID generated is the device WiFi MAC
+         * address (i.e. xx:xx:xx:xx:xx:xx/ota/data).
+         * @param uuid Address of char array that is going to get and store
+         * the generated device ID.
+         * @param uuid_size Size of array that is going to store the ID.
+         */
+        void get_device_uuid(char* uuid, const uint32_t uuid_size);
 
 };
 
