@@ -1,0 +1,17 @@
+###########################################
+# Syntax Coloring Map For mqtt_fuota_duino
+###########################################
+
+###########################################
+# Datatypes (KEYWORD1)
+###########################################
+
+MQTTFUOTA	KEYWORD1
+
+###########################################
+# Methods and Functions (KEYWORD2)
+###########################################
+
+init	KEYWORD2
+process	KEYWORD2
+mqtt_msg_rx	KEYWORD2
