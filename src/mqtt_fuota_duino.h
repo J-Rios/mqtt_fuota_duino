@@ -1,7 +1,7 @@
 /**
  * @file    mqtt_fuota_duino.h
  * @author  Jose Miguel Rios Rubio <jrios.github@gmail.com>
- * @date    12-05-2023
+ * @date    13-05-2023
  * @version 1.0.0
  *
  * @section DESCRIPTION
@@ -63,6 +63,9 @@
 
 /* Class Interface */
 
+/**
+ * @brief MQTT Firmware Update Over The Air Class Interface.
+ */
 class MQTTFirmwareUpdate
 {
     /* Constructor & Destructor */
@@ -118,13 +121,34 @@ class MQTTFirmwareUpdate
 
     private:
 
+        /**
+         * @brief Time to wait between topic subscription attempts in case of
+         * error.
+         */
+        static const unsigned long T_SUBSCRIBE = 5000U;
 
-    /******************************************************************/
+        /**
+         * @brief MQTT Client Received messages Buffer Size.
+         */
+        static const uint16_t RX_BUFFER_SIZE = 2048U;
 
-    /* Private Data Types */
+        /**
+         * @brief Maximum Topic string length
+         * (i.e. "xx:xx:xx:xx:xx:xx/ota/control").
+         */
+        static const uint8_t MAX_TOPIC_LENGTH = 32U;
 
-    private:
+        /**
+         * @brief Maximum Length of UUID.
+         */
+        static const uint8_t MAX_UUID_LENGTH = MAX_TOPIC_LENGTH - 12U;
 
+        #if !defined(MAX_APP_SIZE)
+            /**
+             * @brief Maximum Application Size expected (set to 4MB Flash).
+             */
+            static const uint32_t MAX_APP_SIZE = 4194304U;
+        #endif
 
     /******************************************************************/
 
@@ -132,16 +156,91 @@ class MQTTFirmwareUpdate
 
     private:
 
+        /**
+         * @brief Status of component initialized.
+         */
         bool is_initialized;
+
+        /**
+         * @brief Pointer to MQTT Client component to be used.
+         */
         PubSubClient* MQTTClient;
-        bool fw_ready_update;
+
+        /**
+         * @brief Initial time count for MQTT subscription.
+         */
         unsigned long t0_subscribe;
+
+        /**
+         * @brief Flag to identify if the MQTT CLient is subscribed to the
+         * Setup topic.
+         */
         bool subcribed_to_topic_ota_setup;
+
+        /**
+         * @brief Flag to identify if the MQTT CLient is subscribed to the
+         * Data topic.
+         */
         bool subcribed_to_topic_ota_data;
+
+        /**
+         * @brief String of MQTT Subscription topic: Setup.
+         */
         char topic_sub_ota_setup[MAX_TOPIC_LENGTH];
+
+        /**
+         * @brief String of MQTT Subscription topic: Data.
+         */
         char topic_sub_ota_data[MAX_TOPIC_LENGTH];
+
+        /**
+         * @brief String of MQTT Publish topic: Control.
+         */
         char topic_pub_ota_control[MAX_TOPIC_LENGTH];
+
+        /**
+         * @brief String of MQTT Publish topic: Acknowledge.
+         */
         char topic_pub_ota_ack[MAX_TOPIC_LENGTH];
+
+        /**
+         * @brief Received FUOTA request from Server to be handled.
+         */
+        t_server_request server_request;
+
+        /**
+         * @brief Flag to be set if the Device accept to update the FW (the FW
+         * information received is valid and an update can proceed).
+         */
+        bool valid_update;
+
+        /**
+         * @brief Flag to identify that a FUOTA process is in progress.
+         */
+        bool fuota_on_progress;
+
+        /**
+         * @brief Flasg to identify that a FUOTA process has been completed.
+         */
+        bool fw_update_completed;
+
+        /**
+         * @brief Counter of Firmware bytes written to memory during a FUOTA
+         * process.
+         */
+        uint32_t fw_bytes_written;
+
+        /**
+         * @brief Current Device Firmware information (size, version and
+         * checksum).
+         */
+        t_fw_info fw_device;
+
+        /**
+         * @brief Server available Firmware information (size, version and
+         * checksum).
+         */
+        t_fw_info fw_server;
 
     /******************************************************************/
 
@@ -166,6 +265,16 @@ class MQTTFirmwareUpdate
     private:
 
         /**
+         * @brief Generate and get a default Device ID to be used on MQTT
+         * topics. The default device ID generated is the device WiFi MAC
+         * address (i.e. xx:xx:xx:xx:xx:xx/ota/data).
+         * @param uuid Address of char array that is going to get and store
+         * the generated device ID.
+         * @param uuid_size Size of array that is going to store the ID.
+         */
+        void get_device_uuid(char* uuid, const uint32_t uuid_size);
+
+        /**
          * @brief Check if MQTT is connected.
          * @return true MQTT is connected.
          * @return false MQTT is disconnected.
@@ -178,22 +287,52 @@ class MQTTFirmwareUpdate
         void manage_subscriptions();
 
         /**
-         * @brief Generate and get a default Device ID to be used on MQTT
-         * topics. The default device ID generated is the device WiFi MAC
-         * address (i.e. xx:xx:xx:xx:xx:xx/ota/data).
-         * @param uuid Address of char array that is going to get and store
-         * the generated device ID.
-         * @param uuid_size Size of array that is going to store the ID.
+         * @brief Publish "Control Command" MQTT message to the Control topic.
+         * @param command Command data to publish.
+         * @return true MQTT message publish success.
+         * @return false MQTT message publish fail.
          */
-        void get_device_uuid(char* uuid, const uint32_t uuid_size);
+        bool publish_control_command(const uint8_t* command);
+
+        /**
+         * @brief Publish "FW block ACK" MQTT message to the ACK topic.
+         * @param block_num Number of Firmware block to acknowledge.
+         * @return true MQTT message publish success.
+         * @return false MQTT message publish fail.
+         */
+        bool publish_data_block_ack(const uint32_t block_num);
+
+        /**
+         * @brief Add independent version major-minor-patch uint8_t bytes into
+         * a single uint32_t data type.
+         * @param ver_x Version Major field (XXX.YYY.ZZZ).
+         * @param ver_y Version Minor field (XXX.YYY.ZZZ).
+         * @param ver_z Version Patch field (XXX.YYY.ZZZ).
+         * @return uint32_t Version number word on 4 bytes.
+         */
+        uint32_t u32_version_from_array(
+            const uint8_t ver_x,
+            const uint8_t ver_y,
+            const uint8_t ver_z);
+
+        /**
+         * @brief Add an uint32_t value into a byte array in Big Endian order.
+         * @param u32_value uint32_t value to add into the the array.
+         * @param array Pointer of array to store the bytes.
+         */
+        void big_endian_u32_write_to_array(
+            const uint32_t u32_value,
+            uint8_t* array);
+
+        /**
+         * @brief Get an uint32_t value from byte array reading it in Big
+         * Endian order.
+         * @param array Pointer of array to read the bytes from.
+         * @return uint32_t Value read.
+         */
+        uint32_t big_endian_u32_read_from_array(uint8_t* array);
 
 };
-
-/*****************************************************************************/
-
-/* Object Declaration */
-
-extern MQTTFirmwareUpdate MQTTFUOTA;
 
 /*****************************************************************************/
 
