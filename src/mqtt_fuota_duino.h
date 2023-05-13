@@ -54,7 +54,7 @@
 #include <cstdint>
 
 // MQTT FUOTA Protocol Definitions
-#include "mqtt_fuota_def.h"
+#include "mqtt_fuota_duino_def.h"
 
 // MQTT Library
 #include <PubSubClient.h>
@@ -258,6 +258,22 @@ class MQTTFirmwareUpdate
          */
         void handle_received_fw_data();
 
+        /**
+         * @brief Handle any MQTT message received from the Server through
+         * Setup topic.
+         * @param payload Message pyload data received.
+         * @param length Number of bytes of message pyload data received.
+         */
+        void mqtt_msg_rx_ota_setup(uint8_t* payload, uint32_t length);
+
+        /**
+         * @brief Handle any MQTT message received from the Server through
+         * Data topic.
+         * @param payload Message pyload data received.
+         * @param length Number of bytes of message pyload data received.
+         */
+        void mqtt_msg_rx_ota_data(uint8_t* payload, uint32_t length);
+
     /******************************************************************/
 
     /* Private Methods - Auxiliary */
@@ -301,6 +317,12 @@ class MQTTFirmwareUpdate
          * @return false MQTT message publish fail.
          */
         bool publish_data_block_ack(const uint32_t block_num);
+
+        /**
+         * @brief Clear t_fw_info struct attributes to their default values.
+         * @param fw_info Pointer to t_fw_info element to clear.
+         */
+        void t_fw_info_clear(t_fw_info* fw_info);
 
         /**
          * @brief Add independent version major-minor-patch uint8_t bytes into

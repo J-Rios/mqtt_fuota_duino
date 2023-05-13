@@ -306,11 +306,6 @@ void MQTTFirmwareUpdate::mqtt_msg_rx_ota_setup(uint8_t* payload,
         fw_server.size =
             big_endian_u32_read_from_array(&(payload[FW_INFO_SIZE]));
 
-        #if 0 /* Unused CRC (used MD5 instead) */
-        fw_server.crc =
-            big_endian_u32_read_from_array(&(payload[FW_INFO_CRC]));
-        #endif
-
         // Get and convert MD5 bytes to string of chars
         char* ptr_fw_md5 = fw_server.md5;
         uint8_t md5_bytes_length = (uint8_t)(MD5_LENGTH / 2U);
@@ -405,10 +400,7 @@ void MQTTFirmwareUpdate::handle_server_requests()
         server_request = t_server_request::NONE;
 
         // Clear Server firmware info
-        memset((void*)(fw_server.version), 0, FW_VERSION_LENGTH);
-        fw_server.size = 0U;
-        fw_server.crc = 0xffffffffU;
-        fw_server.md5[0] = '\0';
+        t_fw_info_clear(&fw_server);
 
         Serial.printf("MSG Control Send: FW Update Check\n");
         publish_control_command(MSG_CONTROL_CMD_FW_UPDATE_CHECK);
@@ -659,6 +651,17 @@ bool MQTTFirmwareUpdate::publish_data_block_ack(const uint32_t block_num)
 }
 
 /**
+ * @details This function initialize a t_fw_info struct attributes to their
+ * default clear values.
+ */
+void MQTTFirmwareUpdate::t_fw_info_clear(t_fw_info* fw_info)
+{
+    fw_info->size = 0U;
+    memset((void*)(fw_info->version), 0, FW_VERSION_LENGTH);
+    memset((void*)(fw_info->md5), (int)('\0'), MD5_LENGTH);
+}
+
+/**
  * @details This function converts a XXX.YYY.ZZZ version format from individual
  * bytes, into a single 32 bits unsigned integer element (0x00XXYYZZ).
  */
@@ -693,17 +696,6 @@ uint32_t MQTTFirmwareUpdate::big_endian_u32_read_from_array(uint8_t* array)
 	  | (uint32_t)(array[2] << 8U)
 	  | (uint32_t)(array[3])
     );
-}
-
-/**
- * @details This function initialize a t_fw_info struct attributes to their
- * default clear values.
- */
-void t_fw_info_clear(t_fw_info* fw_info)
-{
-    fw_info->size = 0U;
-    memset((void*)(fw_info->version), 0, FW_VERSION_LENGTH);
-    memset((void*)(fw_info->md5), (int)('\0'), MD5_LENGTH);
 }
 
 /*****************************************************************************/
