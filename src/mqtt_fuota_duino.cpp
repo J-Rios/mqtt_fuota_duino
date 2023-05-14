@@ -149,7 +149,8 @@ MQTTFirmwareUpdate::~MQTTFirmwareUpdate()
  * client reception buffer size according to minimum required size for
  * expected Firmware data block size used by the defined MQTT FUOTA protocol.
  */
-bool MQTTFirmwareUpdate::init(PubSubClient* mqtt_client, char* device_id)
+bool MQTTFirmwareUpdate::init(PubSubClient* mqtt_client,
+        t_fw_info current_fw_info, char* device_id)
 {
     char _device_id[MAX_UUID_LENGTH];
 
@@ -162,6 +163,9 @@ bool MQTTFirmwareUpdate::init(PubSubClient* mqtt_client, char* device_id)
     {   return true;   }
 
     MQTTClient = mqtt_client;
+    fw_device = current_fw_info;
+    fw_device.md5[0] = '\0';
+    fw_device.size = 0U;
 
     // Setup Device ID if not provided
     if (device_id == nullptr)

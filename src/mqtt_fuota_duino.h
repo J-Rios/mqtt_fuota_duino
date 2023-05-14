@@ -91,11 +91,16 @@ class MQTTFirmwareUpdate
         /**
          * @brief Initialize the MQTTFirmwareUpdate component.
          * @param mqtt_client MQTT Client to use.
+         * @param current_fw_info Current Device Application Firmware
+         * information to set current FW version in MQTTFirmwareUpdate.
          * @param device_id Device identification string to be used on topics.
          * @return true Initialization success.
          * @return false Initialization fail.
          */
-        bool init(PubSubClient* mqtt_client, char* device_id=nullptr);
+        bool init(
+            PubSubClient* mqtt_client,
+            t_fw_info current_fw_info,
+            char* device_id=nullptr);
 
         /**
          * @brief Run an iteration of the MQTTFirmwareUpdate main behaviour.
@@ -130,7 +135,7 @@ class MQTTFirmwareUpdate
         /**
          * @brief MQTT Client Received messages Buffer Size.
          */
-        static const uint16_t RX_BUFFER_SIZE = 1028U;
+        static constexpr uint16_t RX_BUFFER_SIZE = 4U + 1024U;
 
         /**
          * @brief Maximum Topic string length
