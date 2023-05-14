@@ -9,10 +9,8 @@ Description:
     through MQTT.
 Author:
     Jose Miguel Rios Rubio
-Creation date:
-    13/05/2023
-Last modified date:
-    13/05/2023
+Date:
+    14/05/2023
 Version:
     1.0.0
 Update Procedure:
@@ -58,12 +56,12 @@ Update Procedure:
 '''
 
 ###############################################################################
-# Application Version Information
+# Tool Version Information
 ###############################################################################
 
 NAME = __file__
 VERSION = "1.0.0"
-DATE = "22/04/2023"
+DATE = "14/05/2023"
 
 
 ###############################################################################
@@ -196,7 +194,7 @@ app_exit = False
 mqtt_just_connected = False
 mqtt_msg_rx_ota_control = False
 mqtt_msg_rx_ota_ack = False
-msg_payload = None
+msg_rx_payload = None
 
 
 ###############################################################################
@@ -219,13 +217,17 @@ def mqtt_publish_ota_setup(client, command):
     logger.info("")
     client.publish(MQTT_TOPIC_PUB_OTA_SETUP, command)
 
-def mqtt_publish_ota_data(client, fw_data):
-    client.publish(MQTT_TOPIC_PUB_OTA_DATA, fw_data)
+def mqtt_publish_ota_data(client, block_n, fw_data):
+    msg_payload = bytearray()
+    msg_payload += block_n.to_bytes(4, "big")
+    msg_payload += fw_data[block_n]
+    client.publish(MQTT_TOPIC_PUB_OTA_DATA, msg_payload)
 
 def mqtt_force_device_check_for_update(client):
     '''Send MQTT msg to device to make it trigger a FW Update Check.'''
     msg_payload = bytearray(MSG_SETUP_CMD_TRIGGER_FW_UPDATE_CHECK)
-    logger.info("Sending MSG_SETUP_CMD_TRIGGER_FW_UPDATE_CHECK")
+    logger.info("Sending force check for FW Update "
+                "(MSG_SETUP_CMD_TRIGGER_FW_UPDATE_CHECK)")
     mqtt_publish_ota_setup(client, msg_payload)
 
 def mqtt_send_last_fw_info(client, fw_size, fw_md5):
@@ -235,14 +237,14 @@ def mqtt_send_last_fw_info(client, fw_size, fw_md5):
     msg_payload += FW_VER_MINOR_FORCE_UPDATE.to_bytes(1, "big")
     msg_payload += FW_VER_PATCH_FORCE_UPDATE.to_bytes(1, "big")
     msg_payload += fw_size.to_bytes(4, "big")
-    msg_payload += fw_md5
-    logger.info("Sending MSG_SETUP_CMD_LAST_FW_INFO")
+    msg_payload +=  bytearray(fw_md5.hex().encode())
+    logger.info("Sending last FW info (MSG_SETUP_CMD_LAST_FW_INFO)")
     mqtt_publish_ota_setup(client, msg_payload)
 
 def mqtt_send_fuota_start(client):
     '''Send MQTT msg to device to start the FUOTA process.'''
     msg_payload = bytearray(MSG_SETUP_CMD_FUOTA_START)
-    logger.info("Sending MSG_SETUP_CMD_FUOTA_START")
+    logger.info("Sending FUOTA process start (MSG_SETUP_CMD_FUOTA_START)")
     mqtt_publish_ota_setup(client, msg_payload)
 
 
@@ -253,20 +255,20 @@ def mqtt_send_fuota_start(client):
 def cb_mqtt_on_connect(client, userdata, flags, rc):
     global mqtt_just_connected
     logger.info("MQTT connected to Broker")
-    client.subscribe(MQTT_TOPIC_SUB_OTA_CONTROL)
-    client.subscribe(MQTT_TOPIC_SUB_OTA_ACK)
+    client.subscribe(MQTT_TOPIC_SUB_OTA_CONTROL, qos=2)
+    client.subscribe(MQTT_TOPIC_SUB_OTA_ACK, qos=2)
     mqtt_just_connected = True
 
 def cb_mqtt_on_msg_rx(client, userdata, msg):
     global mqtt_msg_rx_ota_control
     global mqtt_msg_rx_ota_ack
-    global msg_payload
-    msg_payload = None
+    global msg_rx_payload
+    msg_rx_payload = None
     if msg.topic == MQTT_TOPIC_SUB_OTA_CONTROL:
-        msg_payload = msg.payload
+        msg_rx_payload = msg.payload
         mqtt_msg_rx_ota_control = True
     elif msg.topic == MQTT_TOPIC_SUB_OTA_ACK:
-        msg_payload = msg.payload
+        msg_rx_payload = msg.payload
         mqtt_msg_rx_ota_ack = True
     else:
         logger.warning("Msg rx on unexpected topic")
@@ -292,11 +294,16 @@ def manage_ota(device_id, fw_file_path):
     global mqtt_just_connected
     global mqtt_msg_rx_ota_control
     global mqtt_msg_rx_ota_ack
+    update_success = False
     # Prepare MQTT Topics to use (add device ID to them)
     MQTT_TOPIC_PUB_OTA_SETUP = MQTT_TOPIC_PUB_OTA_SETUP.format(device_id)
     MQTT_TOPIC_PUB_OTA_DATA = MQTT_TOPIC_PUB_OTA_DATA.format(device_id)
     MQTT_TOPIC_SUB_OTA_CONTROL = MQTT_TOPIC_SUB_OTA_CONTROL.format(device_id)
     MQTT_TOPIC_SUB_OTA_ACK = MQTT_TOPIC_SUB_OTA_ACK.format(device_id)
+    logger.info(f"MQTT_TOPIC_PUB_OTA_SETUP: {MQTT_TOPIC_PUB_OTA_SETUP}")
+    logger.info(f"MQTT_TOPIC_PUB_OTA_DATA: {MQTT_TOPIC_PUB_OTA_DATA}")
+    logger.info(f"MQTT_TOPIC_SUB_OTA_CONTROL: {MQTT_TOPIC_SUB_OTA_CONTROL}")
+    logger.info(f"MQTT_TOPIC_SUB_OTA_ACK: {MQTT_TOPIC_SUB_OTA_ACK}")
     # Read Firmware file and calculate size and number of data blocks
     fw_data = file_read(fw_file_path)
     if fw_data is None:
@@ -319,7 +326,8 @@ def manage_ota(device_id, fw_file_path):
         block_start = block_start + FW_DATA_BLOCK_SIZE
         block_end = block_end + FW_DATA_BLOCK_SIZE
     if last_block_size != 0:
-        list_fw_blocks.append(bytearray(fw_data[block_start:last_block_size]))
+        list_fw_blocks.append(
+            bytearray(fw_data[block_start:block_start+last_block_size]))
     logger.info(f"Number of blocks: {len(list_fw_blocks)}")
     logger.info(f"Last block size: {last_block_size}")
     # Launch MQTT Connection
@@ -328,10 +336,10 @@ def manage_ota(device_id, fw_file_path):
     mqtt_client.on_connect = cb_mqtt_on_connect
     mqtt_client.on_message = cb_mqtt_on_msg_rx
     mqtt_client.connect(MQTT_HOST, MQTT_PORT, 60)
-    mqttBackgroundThread = threading.Thread(
+    th_mqtt_process_id = threading.Thread(
         target=th_mqtt_process,
         args=(mqtt_client,))
-    mqttBackgroundThread.start()
+    th_mqtt_process_id.start()
     # Manage OTA Procedure
     block_n = 0
     logger.info("OTA Procedure Started")
@@ -343,47 +351,56 @@ def manage_ota(device_id, fw_file_path):
             mqtt_force_device_check_for_update(mqtt_client)
         elif mqtt_msg_rx_ota_control:
             mqtt_msg_rx_ota_control = False
-            if msg_payload is None:
+            if msg_rx_payload is None:
                 continue
-            cmd = list(msg_payload)
+            cmd = list(msg_rx_payload)
             # Device Request check FW Update (get last FW information)
             if cmd == MSG_CONTROL_CMD_FW_UPDATE_CHECK:
-                logger.info("Sending last FW info")
+                logger.info("Device request last available FW information")
                 mqtt_send_last_fw_info(mqtt_client, fw_size, fw_data_md5)
             # Device request to launch a FUOTA process to Server
             elif cmd == MSG_CONTROL_CMD_REQUEST_FW_UPDATE:
-                logger.info("Sending FUOTA Start command")
+                logger.info("Device request a FW Update")
                 mqtt_send_fuota_start(mqtt_client)
             # Device ready to start FUOTA process
             elif cmd == MSG_ACK_FUOTA_START:
                 # Send first FW data block
                 block_n = 0
                 logger.info(f"Sending FW block {block_n}")
-                mqtt_publish_ota_data(mqtt_client, list_fw_blocks[block_n])
+                mqtt_publish_ota_data(mqtt_client, block_n, list_fw_blocks)
                 block_n = block_n + 1
             # FUOTA process completed successfully
             elif cmd == MSG_CONTROL_CMD_FW_UPDATE_COMPLETED_OK:
-                logger.info("Firmware Update completed")
+                logger.info("Device notify Firmware Update completed")
+                update_success = True
                 break
             # FUOTA process completed but update on device has fail
             elif cmd == MSG_CONTROL_CMD_FW_UPDATE_COMPLETED_FAIL:
-                logger.info("Firmware Update fail")
+                logger.info("Device notify Firmware Update fail")
                 break
             else:
-                logger.warning("Unkown command received from device")
+                logger.warning("Unkown command received from Device")
         elif mqtt_msg_rx_ota_ack:
             mqtt_msg_rx_ota_ack = False
-            if msg_payload is None:
+            if msg_rx_payload is None:
                 continue
-            ack_block_n = int.from_bytes(msg_payload, "big")
+            ack_block_n = int.from_bytes(msg_rx_payload, "big")
             if ack_block_n != (block_n - 1):
                 logger.error("Received ACK of unexpected FW block")
                 logger.error(f"Expected {block_n}, received {ack_block_n}")
                 break
-            logger.info(f"Sending FW block {block_n}")
-            mqtt_publish_ota_data(mqtt_client, list_fw_blocks[block_n])
-            block_n = block_n + 1
-    return True
+            if block_n < num_blocks:
+                logger.info(f"Sending FW block {block_n}")
+                mqtt_publish_ota_data(mqtt_client, block_n, list_fw_blocks)
+                block_n = block_n + 1
+    # Close MQTT and wait for process thread end
+    logger.info("Disconnecting from MQTT")
+    mqtt_client.disconnect()
+    mqtt_client.loop_stop()
+    if th_mqtt_process_id.is_alive():
+        th_mqtt_process_id.join()
+    logger.info("MQTT Closed")
+    return update_success
 
 
 ###############################################################################
@@ -413,10 +430,6 @@ def main(argc, argv):
     if args.device and args.firmware:
         if not manage_ota(args.device, args.firmware):
             return 1
-    else:
-        return 0
-    while not app_exit:
-        time.sleep(1)
     return 0
 
 
@@ -452,4 +465,5 @@ if __name__ == '__main__':
     logger.info("{} v{} {}\n".format(os_path.basename(NAME), VERSION, DATE))
     system_termination_signal_setup()
     return_code = main(len(sys_argv) - 1, sys_argv[1:])
+    logger.info(f"Exit ({return_code})")
     sys_exit(return_code)
