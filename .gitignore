@@ -7,3 +7,6 @@
 **/*.bin
 **/*.elf
 **/*.hex
+
+src/main.cpp
+platformio.ini
