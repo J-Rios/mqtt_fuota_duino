@@ -54,7 +54,7 @@
 #endif
 
 // Custom libraries
-#include <mqtt_fuota_duino.h>
+#include "mqtt_fuota_duino.h"
 
 /*****************************************************************************/
 
@@ -72,9 +72,6 @@ static const char WIFI_PASS[] = SET_WIFI_PASS;
 static const uint8_t MAX_LENGTH_WIFI_SSID = 31;
 static const uint8_t MAX_LENGTH_WIFI_PASS = 63;
 static const uint8_t MAX_CONN_FAIL = 50U;
-
-// Device Hostname to set for MQTT
-static const char DEVICE_HOST_NAME[] = "mqtt_fuota_device";
 
 // MQTT Server Connection
 static const char MQTT_SERVER[] = "test.mosquitto.org";
