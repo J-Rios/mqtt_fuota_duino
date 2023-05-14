@@ -111,6 +111,7 @@ The next MQTT topics are used by this FUOTA-MQTT mechanism:
 
 The MQTT messages transaction flow is the following:
 
+```text
 Server                                                       Device
   ||                                                           ||
   || Trigger FW Update Check [device_id/ota/setup]             ||
@@ -150,6 +151,7 @@ Server                                                       Device
   ||               FW Update Completed [device_id/ota/control] ||
   ||<----------------------------------------------------------||
   ||                                                           ||
+```
 
 # Notes
 
