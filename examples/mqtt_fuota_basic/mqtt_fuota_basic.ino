@@ -144,7 +144,10 @@ void loop()
 
     // Handle MQTT
     if (mqtt_is_connected() == false)
-    {   mqtt_connect();   }
+    {
+        if (mqtt_connect())
+        {   Serial.println("App ready for receive FW Update");   }
+    }
     else
     {
         // Process MQTT client
@@ -211,7 +214,7 @@ bool wifi_handle_connection()
 
 static void cb_mqtt_msg_rx(char* topic, uint8_t* payload, unsigned int length)
 {
-    Serial.println("MQTT msg rx");
+    //Serial.println("MQTT msg rx");
 
     // MQTT FUOTA Mechanism
     MqttFuota.mqtt_msg_rx(topic, payload, (uint32_t)(length));
@@ -240,8 +243,8 @@ bool mqtt_connect()
     t0 = millis();
 
     // MQTT Connection
-    Serial.println("MQTT Connection...\n");
-    if (MQTTClient.connect(DEVICE_HOST_NAME) == false)
+    Serial.println("MQTT Connection...");
+    if (MQTTClient.connect(WiFi.macAddress().c_str()) == false)
     {
         Serial.println("Fail to connect to MQTT Broker...\n");
         return false;
