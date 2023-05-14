@@ -100,6 +100,18 @@
 
 /*****************************************************************************/
 
+/* Tagged Debug Messages */
+
+static const char DEBUG_TAG[] = "MQTT_FUOTA";
+
+#define debug_printf(...) do \
+{                                        \
+    Serial.printf("[%s] ", DEBUG_TAG);   \
+    Serial.printf(__VA_ARGS__);          \
+} while (0)
+
+/*****************************************************************************/
+
 /* Constructor & Destructor */
 
 /**
@@ -183,6 +195,11 @@ bool MQTTFirmwareUpdate::init(PubSubClient* mqtt_client,
         MQTT_TOPIC_PUB_OTA_CONTROL, device_id);
     snprintf(topic_pub_ota_ack, sizeof(topic_pub_ota_ack),
         MQTT_TOPIC_PUB_OTA_ACK, device_id);
+    debug_printf("\nMQTT FUOTA Topics:\n");
+    debug_printf("%s\n", topic_sub_ota_setup);
+    debug_printf("%s\n", topic_sub_ota_data);
+    debug_printf("%s\n", topic_pub_ota_control);
+    debug_printf("%s\n\n", topic_pub_ota_ack);
 
     // Set MQTT Client required Rx buffer size if needed
     if (MQTTClient->getBufferSize() < RX_BUFFER_SIZE)
@@ -212,7 +229,7 @@ void MQTTFirmwareUpdate::process()
 
     // Do nothing if MQTT is not connected
     if (is_connected() == false)
-    {   Serial.printf("Disconnected\n"); return;   }
+    {   debug_printf("Disconnected\n"); return;   }
 
     // Check for subscriptions and resubscribe if needed
     manage_subscriptions();
@@ -244,13 +261,13 @@ bool MQTTFirmwareUpdate::mqtt_msg_rx(char* topic, uint8_t* payload,
     // Check for expected topics
     if (strcmp(topic, topic_sub_ota_setup) == 0)
     {
-        Serial.printf("[MQTT_FUOTA] MSG RX: OTA Setup\n");
+        debug_printf("[MQTT_FUOTA] MSG RX: OTA Setup\n");
         mqtt_msg_rx_ota_setup(payload, length);
         msg_handled = true;
     }
     else if (strcmp(topic, topic_sub_ota_data) == 0)
     {
-        Serial.printf("[MQTT_FUOTA] MSG RX: FW DATA\n");
+        //debug_printf("[MQTT_FUOTA] MSG RX: FW DATA\n");
         mqtt_msg_rx_ota_data(payload, length);
         msg_handled = true;
     }
@@ -291,7 +308,7 @@ void MQTTFirmwareUpdate::mqtt_msg_rx_ota_setup(uint8_t* payload,
         if (length != MSG_SETUP_CMD_TRIGGER_FW_UPDATE_CHECK_LENGTH)
         {   return;   }
 
-        Serial.printf("Server requesting device to check for FW update\n");
+        debug_printf("Server requesting device to check for FW update\n");
         server_request = t_server_request::TRIGGER_FW_UPDATE_CHECK;
     }
 
@@ -327,12 +344,12 @@ void MQTTFirmwareUpdate::mqtt_msg_rx_ota_setup(uint8_t* payload,
     #endif
 
         Serial.printf("\n");
-        Serial.printf("Server FW info received:\n");
-        Serial.printf("  FW Version: %d.%d.%d\n", (int)(fw_server.version[0]),
+        debug_printf("Server FW info received:\n");
+        debug_printf("  FW Version: %d.%d.%d\n", (int)(fw_server.version[0]),
             (int)(fw_server.version[1]), (int)(fw_server.version[2]));
-        Serial.printf("  FW Size: %" PRIu32 "KB\n",
+        debug_printf("  FW Size: %" PRIu32 "KB\n",
             (uint32_t)(fw_server.size / 1024U));
-        Serial.printf("  FW MD5 Hash: %s\n", fw_server.md5);
+        debug_printf("  FW MD5 Hash: %s\n", fw_server.md5);
         Serial.printf("\n");
 
         server_request = t_server_request::FW_UPDATE;
@@ -345,13 +362,13 @@ void MQTTFirmwareUpdate::mqtt_msg_rx_ota_setup(uint8_t* payload,
         if (length != MSG_SETUP_CMD_FUOTA_START_LENGTH)
         {   return;   }
 
-        Serial.printf("Server requesting FUOTA Start\n");
+        debug_printf("Server requesting FUOTA Start\n");
         server_request = t_server_request::FUOTA_START;
     }
 
     // Unexpected messages
     else
-    {   Serial.printf("Unexpected msg\n");   }
+    {   debug_printf("Unexpected msg\n");   }
 }
 
 /**
@@ -393,7 +410,7 @@ void MQTTFirmwareUpdate::mqtt_msg_rx_ota_data(uint8_t* payload,
 
     // Show current update progress
     progress = (uint8_t)((100U * fw_bytes_written) / fw_server.size);
-    Serial.printf("Updating %" PRIu8 "%% (%" PRIu32 "/%" PRIu32 ")\n",
+    debug_printf("FW Updating %" PRIu8 "%% (%" PRIu32 "/%" PRIu32 ")\n",
         progress, fw_bytes_written, fw_server.size);
 
     // Check if FW update has been completed
@@ -422,7 +439,7 @@ void MQTTFirmwareUpdate::handle_server_requests()
         // Clear Server firmware info
         t_fw_info_clear(&fw_server);
 
-        Serial.printf("MSG Control Send: FW Update Check\n");
+        debug_printf("MSG Control Send: FW Update Check\n");
         publish_control_command(MSG_CONTROL_CMD_FW_UPDATE_CHECK);
     }
 
@@ -436,10 +453,10 @@ void MQTTFirmwareUpdate::handle_server_requests()
         {   return;   }
 
         Serial.printf("\n");
-        Serial.printf("FW Version:\n");
-        Serial.printf("Device: %d.%d.%d\n", (int)(fw_device.version[0]),
+        debug_printf("FW Version:\n");
+        debug_printf("Device: %d.%d.%d\n", (int)(fw_device.version[0]),
             (int)(fw_device.version[1]), (int)(fw_device.version[2]));
-        Serial.printf("Server: %d.%d.%d\n", (int)(fw_server.version[0]),
+        debug_printf("Server: %d.%d.%d\n\n", (int)(fw_server.version[0]),
             (int)(fw_server.version[1]), (int)(fw_server.version[2]));
 
         // Convert FW version to 32 bits unsigned integer for comparison
@@ -454,15 +471,15 @@ void MQTTFirmwareUpdate::handle_server_requests()
         {
             if (u32_fw_server_ver <= u32_fw_device_ver)
             {
-                Serial.printf("FW Version Server <= Device\n");
-                Serial.printf("No need to update FW\n");
+                debug_printf("FW Version Server <= Device\n");
+                debug_printf("No need to update FW\n");
                 return;
             }
         }
 
         // Request FW update if device FW version is lower than Server one
         valid_update = true;
-        Serial.printf("MSG Control Send: Request FW Update\n");
+        debug_printf("MSG Control Send: Request FW Update\n");
         publish_control_command(MSG_CONTROL_CMD_REQUEST_FW_UPDATE);
     }
 
@@ -477,7 +494,7 @@ void MQTTFirmwareUpdate::handle_server_requests()
         // Enable Updater Component
         if (Update.begin(fw_server.size) == false)
         {
-            Serial.printf("Not enough APP space for update\n");
+            debug_printf("Not enough APP space for update\n");
             return;
         }
 
@@ -487,7 +504,7 @@ void MQTTFirmwareUpdate::handle_server_requests()
         // Notify the Server that Device is ready to receive FW data
         fw_bytes_written = 0U;
         fuota_on_progress = true;
-        Serial.printf("MSG Control Send: FUOTA Start ACK\n");
+        debug_printf("MSG Control Send: FUOTA Start ACK\n");
         publish_control_command(MSG_ACK_FUOTA_START);
     }
 }
@@ -509,7 +526,7 @@ void MQTTFirmwareUpdate::handle_received_fw_data()
     // Handle FW Update errors
     if (Update.hasError())
     {
-        Serial.println(Update.errorString());
+        debug_printf("%s\n", Update.errorString());
         Update.abort();
         publish_control_command(MSG_CONTROL_CMD_FW_UPDATE_COMPLETED_FAIL);
         return;
@@ -521,13 +538,13 @@ void MQTTFirmwareUpdate::handle_received_fw_data()
         fw_update_completed = false;
         fuota_on_progress = false;
 
-        Serial.println("Update completed\n");
+        debug_printf("Update completed\n");
 
         // Handle any pending update and check for update errors
         Update.remaining();
         if (Update.hasError())
         {
-            Serial.println(Update.errorString());
+            debug_printf("%s\n", Update.errorString());
             Update.abort();
             publish_control_command(MSG_CONTROL_CMD_FW_UPDATE_COMPLETED_FAIL);
             return;
@@ -536,7 +553,7 @@ void MQTTFirmwareUpdate::handle_received_fw_data()
         // Check Update end
         if (Update.end() == false)
         {
-            Serial.printf("Update fail\n");
+            debug_printf("Update fail\n");
             Update.abort();
             publish_control_command(MSG_CONTROL_CMD_FW_UPDATE_COMPLETED_FAIL);
             return;
@@ -544,9 +561,9 @@ void MQTTFirmwareUpdate::handle_received_fw_data()
 
         // FW Update success, reboot system
         publish_control_command(MSG_CONTROL_CMD_FW_UPDATE_COMPLETED_OK);
-        Serial.printf("FW Update success\n");
-        Serial.printf("Rebooting FW\n");
-        Serial.printf("\n-------------------------------\n\n");
+        debug_printf("FW Update success\n");
+        debug_printf("Rebooting FW\n");
+        debug_printf("\n-------------------------------\n\n");
         delay(3000);
         ESP.restart();
     }
