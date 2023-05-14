@@ -1,7 +1,7 @@
 /**
  * @file    mqtt_fuota_duino_def.h
  * @author  Jose Miguel Rios Rubio <jrios.github@gmail.com>
- * @date    13-05-2023
+ * @date    14-05-2023
  * @version 1.0.0
  *
  * @section DESCRIPTION
@@ -81,7 +81,7 @@ static const uint8_t MSG_SETUP_CMD_TRIGGER_FW_UPDATE_CHECK_LENGTH = 1U;
 
 // Message to provide last stable FW information (version, size, checksum)
 static const uint8_t MSG_SETUP_CMD_LAST_FW_INFO = 0x01U;
-static const uint8_t MSG_SETUP_CMD_LAST_FW_INFO_LENGTH = 24U;
+static const uint8_t MSG_SETUP_CMD_LAST_FW_INFO_LENGTH = 40U;
 
 // Message to request the device to start the FUOTA process (listening for FW
 // data block messages
@@ -133,7 +133,7 @@ typedef struct t_fw_info
 #if 0 /* Unused CRC (used MD5 instead) */
     uint32_t crc;
 #endif
-    char md5[MD5_LENGTH];
+    char md5[MD5_LENGTH+1];
 } t_fw_info;
 
 // Server Setup Messages Requests commands
@@ -146,6 +146,9 @@ enum class t_server_request : uint8_t
 };
 
 // Setup Message Fields buffer index locations
+// Last FW Info Frame:
+//   [ FW_INFO_CMD(0), FW_INFO_VER_MAJOR(1:3), FW_INFO_SIZE(4:7),
+//     FW_INFO_MD5(8:40) ]
 enum t_msg_fw_info_field
 {
     FW_INFO_CMD = 0,
@@ -157,6 +160,15 @@ enum t_msg_fw_info_field
     FW_INFO_CRC = 8,
 #endif
     FW_INFO_MD5 = 8,
+};
+
+// Firmware Data Message Fields buffer index locations
+// FW Data Block Frame:
+//   [ FW_BLOCK_NUM(0:3), FW_BLOCK_DATA(4:1028) ]
+enum t_msg_fw_data_block
+{
+    FW_BLOCK_NUM = 0,
+    FW_BLOCK_DATA = 4,
 };
 
 /*****************************************************************************/

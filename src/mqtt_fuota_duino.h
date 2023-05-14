@@ -1,7 +1,7 @@
 /**
  * @file    mqtt_fuota_duino.h
  * @author  Jose Miguel Rios Rubio <jrios.github@gmail.com>
- * @date    13-05-2023
+ * @date    14-05-2023
  * @version 1.0.0
  *
  * @section DESCRIPTION
@@ -130,7 +130,7 @@ class MQTTFirmwareUpdate
         /**
          * @brief MQTT Client Received messages Buffer Size.
          */
-        static const uint16_t RX_BUFFER_SIZE = 2048U;
+        static const uint16_t RX_BUFFER_SIZE = 1028U;
 
         /**
          * @brief Maximum Topic string length
@@ -220,15 +220,25 @@ class MQTTFirmwareUpdate
         bool fuota_on_progress;
 
         /**
-         * @brief Flasg to identify that a FUOTA process has been completed.
+         * @brief Flag to identify that a FUOTA process has been completed.
          */
         bool fw_update_completed;
+
+        /**
+         * @brief Flag to identify that a new FW data block has been received.
+         */
+        bool fw_data_block_received;
 
         /**
          * @brief Counter of Firmware bytes written to memory during a FUOTA
          * process.
          */
         uint32_t fw_bytes_written;
+
+        /**
+         * @brief Last Firmware data block received during the FUOTA process.
+         */
+        uint32_t fw_block_n;
 
         /**
          * @brief Current Device Firmware information (size, version and

@@ -1,7 +1,7 @@
 /**
  * @file    mqtt_fuota_duino.cpp
  * @author  Jose Miguel Rios Rubio <jrios.github@gmail.com>
- * @date    13-05-2023
+ * @date    14-05-2023
  * @version 1.0.0
  *
  * @section DESCRIPTION
@@ -121,7 +121,9 @@ MQTTFirmwareUpdate::MQTTFirmwareUpdate()
     valid_update = false;
     fuota_on_progress = false;
     fw_update_completed = false;
+    fw_data_block_received = false;
     fw_bytes_written = 0U;
+    fw_block_n = 0U;
     t_fw_info_clear(&fw_device);
     t_fw_info_clear(&fw_server);
 }
@@ -201,15 +203,15 @@ void MQTTFirmwareUpdate::process()
     if (is_initialized == false)
     {   return;   }
 
+    // Process MQTT client
+    MQTTClient->loop();
+
     // Do nothing if MQTT is not connected
     if (is_connected() == false)
-    {   return;   }
+    {   Serial.printf("Disconnected\n"); return;   }
 
     // Check for subscriptions and resubscribe if needed
     manage_subscriptions();
-
-    // Process MQTT client
-    MQTTClient->loop();
 
     // Handle all requests sent by the Server through the Setup topic
     handle_server_requests();
@@ -307,20 +309,26 @@ void MQTTFirmwareUpdate::mqtt_msg_rx_ota_setup(uint8_t* payload,
             big_endian_u32_read_from_array(&(payload[FW_INFO_SIZE]));
 
         // Get and convert MD5 bytes to string of chars
+        memcpy((void*)(fw_server.md5),
+               (const void*)(&(payload[FW_INFO_MD5])),
+               (size_t)(MD5_LENGTH));
+        fw_server.md5[MD5_LENGTH] = '\0';
+    #if 0
         char* ptr_fw_md5 = fw_server.md5;
         uint8_t md5_bytes_length = (uint8_t)(MD5_LENGTH / 2U);
         for (int i = 0; i < md5_bytes_length; i++)
         {
             ptr_fw_md5 += sprintf(ptr_fw_md5, "%02X", payload[i+FW_INFO_MD5]);
         }
+    #endif
 
         Serial.printf("\n");
-        Serial.printf("\nServer FW info received:\n");
-        Serial.printf("FW Version: %d.%d.%d\n", (int)(fw_server.version[0]),
+        Serial.printf("Server FW info received:\n");
+        Serial.printf("  FW Version: %d.%d.%d\n", (int)(fw_server.version[0]),
             (int)(fw_server.version[1]), (int)(fw_server.version[2]));
-        Serial.printf("FW Size: %" PRIu32 "KB\n",
+        Serial.printf("  FW Size: %" PRIu32 "KB\n",
             (uint32_t)(fw_server.size / 1024U));
-        Serial.printf("FW MD5 Hash: %s\n", fw_server.md5);
+        Serial.printf("  FW MD5 Hash: %s\n", fw_server.md5);
         Serial.printf("\n");
 
         server_request = t_server_request::FW_UPDATE;
@@ -366,22 +374,30 @@ void MQTTFirmwareUpdate::mqtt_msg_rx_ota_data(uint8_t* payload,
     if (fuota_on_progress == false)
     {   return;   }
 
+    // Parse payload and get FW block number and data
+    fw_block_n = big_endian_u32_read_from_array(&(payload[FW_BLOCK_NUM]));
+    uint8_t* fw_data = &(payload[FW_BLOCK_DATA]);
+    uint32_t fw_data_length = length - (FW_BLOCK_DATA - FW_BLOCK_NUM);
+
     // Limit bytes to write if there is coming more than expected
-    if (fw_bytes_written + length > fw_server.size)
-    {   length = fw_server.size - fw_bytes_written;   }
+    if (fw_bytes_written + fw_data_length > fw_server.size)
+    {   fw_data_length = fw_server.size - fw_bytes_written;   }
 
     // Write FW data block into memory
-    num_bytes_written = Update.write(payload, length);
+    num_bytes_written = Update.write(fw_data, fw_data_length);
     fw_bytes_written = fw_bytes_written + num_bytes_written;
 
     // Show current update progress
-    progress = (uint8_t)(100 * (fw_bytes_written / fw_server.size));
-    Serial.printf("Updating %" PRIu8 "%% (%" PRIu32 "/%" PRIu32 "\n",
+    progress = (uint8_t)((100U * fw_bytes_written) / fw_server.size);
+    Serial.printf("Updating %" PRIu8 "%% (%" PRIu32 "/%" PRIu32 ")\n",
         progress, fw_bytes_written, fw_server.size);
 
     // Check if FW update has been completed
     if (fw_bytes_written >= fw_server.size)
     {   fw_update_completed = true;   }
+
+    // Set flag of new FW data block received
+    fw_data_block_received = true;
 }
 
 /*****************************************************************************/
@@ -466,7 +482,6 @@ void MQTTFirmwareUpdate::handle_server_requests()
 
         // Notify the Server that Device is ready to receive FW data
         fw_bytes_written = 0U;
-        memset((void*)(fw_server.md5), (int)('\0'), MD5_LENGTH);
         fuota_on_progress = true;
         Serial.printf("MSG Control Send: FUOTA Start ACK\n");
         publish_control_command(MSG_ACK_FUOTA_START);
@@ -531,6 +546,13 @@ void MQTTFirmwareUpdate::handle_received_fw_data()
         delay(3000);
         ESP.restart();
     }
+
+    // Handle FW data block received acknowledge
+    if (fw_data_block_received)
+    {
+        fw_data_block_received = false;
+        publish_data_block_ack(fw_block_n);
+    }
 }
 
 /*****************************************************************************/
@@ -566,7 +588,7 @@ bool MQTTFirmwareUpdate::is_connected()
  */
 void MQTTFirmwareUpdate::manage_subscriptions()
 {
-    static const uint8_t sub_qos = 1U;
+    static const uint8_t sub_qos = 0U;
 
     // Do nothing if component is not initialized
     if (is_initialized == false)
