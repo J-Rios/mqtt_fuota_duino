@@ -9,4 +9,3 @@
 **/*.hex
 
 src/main.cpp
-platformio.ini
