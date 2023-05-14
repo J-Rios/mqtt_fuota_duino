@@ -120,7 +120,6 @@ void setup()
     wifi_init_stat();
 
     // Setup MQTT Client
-    MQTTClient.setBufferSize(2048);
     MQTTClient.setServer(MQTT_SERVER, MQTT_PORT);
     MQTTClient.setCallback(cb_mqtt_msg_rx);
 

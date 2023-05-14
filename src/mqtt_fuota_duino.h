@@ -135,7 +135,7 @@ class MQTTFirmwareUpdate
         /**
          * @brief MQTT Client Received messages Buffer Size.
          */
-        static constexpr uint16_t RX_BUFFER_SIZE = 4U + 1024U;
+        static constexpr uint16_t RX_BUFFER_SIZE = 1100U;
 
         /**
          * @brief Maximum Topic string length
