@@ -138,15 +138,15 @@ class MQTTFirmwareUpdate
         static constexpr uint16_t RX_BUFFER_SIZE = 1100U;
 
         /**
+         * @brief Maximum Length of UUID ("xx:xx:xx:xx:xx:xx").
+         */
+        static constexpr uint8_t MAX_UUID_LENGTH = 18U;
+
+        /**
          * @brief Maximum Topic string length
          * (i.e. "xx:xx:xx:xx:xx:xx/ota/control").
          */
-        static const uint8_t MAX_TOPIC_LENGTH = 32U;
-
-        /**
-         * @brief Maximum Length of UUID.
-         */
-        static const uint8_t MAX_UUID_LENGTH = MAX_TOPIC_LENGTH - 12U;
+        static const uint8_t MAX_TOPIC_LENGTH = MAX_UUID_LENGTH + 16U;
 
         #if !defined(MAX_APP_SIZE)
             /**
