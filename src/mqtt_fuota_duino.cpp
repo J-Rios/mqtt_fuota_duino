@@ -92,11 +92,19 @@
 // Hardware Abstraction Layer Framework
 #include "Arduino.h"
 
-// Firmware Update Library
-#include "Update.h"
-
 // WiFi Library
-#include <WiFi.h>
+#if defined(ESP8266)
+    #include <ESP8266WiFi.h>
+#else
+    #include <WiFi.h>
+#endif
+
+// Firmware Update Library
+#if defined(ESP8266)
+    #include "Updater.h"
+#else
+    #include "Update.h"
+#endif
 
 /*****************************************************************************/
 
@@ -109,6 +117,19 @@ static const char DEBUG_TAG[] = "MQTT_FUOTA";
     Serial.printf("[%s] ", DEBUG_TAG);   \
     Serial.printf(__VA_ARGS__);          \
 } while (0)
+
+/*****************************************************************************/
+
+/* Device Abstraction */
+
+// Differences between Updater component of ESP8266 and others (ESP32)
+#if defined(ESP8266)
+    #define update_abort() Update.end()
+    #define update_get_error() Update.getErrorString().c_str()
+#else
+    #define update_abort() Update.abort()
+    #define update_get_error() Update.errorString()
+#endif
 
 /*****************************************************************************/
 
@@ -195,7 +216,7 @@ bool MQTTFirmwareUpdate::init(PubSubClient* mqtt_client,
         MQTT_TOPIC_PUB_OTA_CONTROL, device_id);
     snprintf(topic_pub_ota_ack, sizeof(topic_pub_ota_ack),
         MQTT_TOPIC_PUB_OTA_ACK, device_id);
-    debug_printf("\nMQTT FUOTA Topics:\n");
+    debug_printf("MQTT FUOTA Topics:\n");
     debug_printf("%s\n", topic_sub_ota_setup);
     debug_printf("%s\n", topic_sub_ota_data);
     debug_printf("%s\n", topic_pub_ota_control);
@@ -489,7 +510,7 @@ void MQTTFirmwareUpdate::handle_server_requests()
         server_request = t_server_request::NONE;
 
         // Make sure to stop any update in progress before launching a new one
-        Update.abort();
+        update_abort();
 
         // Enable Updater Component
         if (Update.begin(fw_server.size) == false)
@@ -526,8 +547,8 @@ void MQTTFirmwareUpdate::handle_received_fw_data()
     // Handle FW Update errors
     if (Update.hasError())
     {
-        debug_printf("%s\n", Update.errorString());
-        Update.abort();
+        debug_printf("%s\n", update_get_error());
+        update_abort();
         publish_control_command(MSG_CONTROL_CMD_FW_UPDATE_COMPLETED_FAIL);
         return;
     }
@@ -544,8 +565,8 @@ void MQTTFirmwareUpdate::handle_received_fw_data()
         Update.remaining();
         if (Update.hasError())
         {
-            debug_printf("%s\n", Update.errorString());
-            Update.abort();
+            debug_printf("%s\n", update_get_error());
+            update_abort();
             publish_control_command(MSG_CONTROL_CMD_FW_UPDATE_COMPLETED_FAIL);
             return;
         }
@@ -554,7 +575,7 @@ void MQTTFirmwareUpdate::handle_received_fw_data()
         if (Update.end() == false)
         {
             debug_printf("Update fail\n");
-            Update.abort();
+            update_abort();
             publish_control_command(MSG_CONTROL_CMD_FW_UPDATE_COMPLETED_FAIL);
             return;
         }
